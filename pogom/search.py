@@ -436,7 +436,7 @@ def assign_spawns(spawns, num_workers, max_speed):
 
     spawns.sort(key=itemgetter('time'))
 
-    Q = [ [] for i in range(num_workers) ]
+    Q = [[] for i in range(num_workers)]
 
     log.info('Attemping to assign %d spawn points to %d accounts' % (len(spawns), num_workers))
 
@@ -450,7 +450,7 @@ def assign_spawns(spawns, num_workers, max_speed):
 
     jumps = 0
     for sp in spawns:
-        speeds = [ speed(q[-1], sp) if len(q) else 0 for q in Q ]
+        speeds = [speed(q[-1], sp) if len(q) else 0 for q in Q]
         min_speed = min(speeds)
         index = speeds.index(min_speed)
         if min_speed > max_speed:
@@ -471,23 +471,23 @@ def assign_spawns(spawns, num_workers, max_speed):
     def correct(queue):
         new = [queue[0]]
         for i in range(len(queue) - 1):
-           j = i + 1
-           if 0 < speed(new[i], queue[j]) <= 30:
-               new.append(queue[j])
-           else:
-               dist = geopy_distance.distance((new[i]['lat'], new[i]['lng']), (queue[j]['lat'], queue[j]['lng'])).meters
-               time2wait = (dist / 30) - (queue[j]['time'] - new[i]['time'])
-               queue[j]['time'] += time2wait
-               delays.append(time2wait)
-               new.append(queue[j])
+            j = i + 1
+            if 0 < speed(new[i], queue[j]) <= 30:
+                new.append(queue[j])
+            else:
+                dist = geopy_distance.distance((new[i]['lat'], new[i]['lng']), (queue[j]['lat'], queue[j]['lng'])).meters
+                time2wait = (dist / 30) - (queue[j]['time'] - new[i]['time'])
+                queue[j]['time'] += time2wait
+                delays.append(time2wait)
+                new.append(queue[j])
         for sp in new:
             sp['time'] %= 3600
         return new[0:-1]
 
-    Q = [ correct(q) for q in Q ]
+    Q = [correct(q) for q in Q]
 
     log.debug('Completed job assignment.')
-    log.info('Job queue sizes: %s' % str([ len(q) for q in Q ]))
+    log.info('Job queue sizes: %s' % str([len(q) for q in Q]))
     if len(delays):
         log.info('Number of scan delays: %d.' % len(delays))
         log.info('Average delay: %f seconds.' % (sum(delays) / len(delays)))
