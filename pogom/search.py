@@ -472,11 +472,11 @@ def assign_spawns(spawns, num_workers, max_speed):
         new = [queue[0]]
         for i in range(len(queue) - 1):
             j = i + 1
-            if 0 < speed(new[i], queue[j]) <= 30:
+            if 0 < speed(new[i], queue[j]) <= max_speed:
                 new.append(queue[j])
             else:
                 dist = geopy_distance.distance((new[i]['lat'], new[i]['lng']), (queue[j]['lat'], queue[j]['lng'])).meters
-                time2wait = (dist / 30) - (queue[j]['time'] - new[i]['time'])
+                time2wait = (dist / max_speed) - (queue[j]['time'] - new[i]['time'])
                 queue[j]['time'] += time2wait
                 delays.append(time2wait)
                 new.append(queue[j])
