@@ -441,7 +441,7 @@ def assign_spawns(spawns, num_workers, max_speed):
     log.info('Attemping to assign %d spawn points to %d accounts' % (len(spawns), num_workers))
 
     def speed(sp1, sp2):
-        dist = geopy_distance.distance((sp1['lat'], sp2['lng']), (sp2['lat'], sp2['lng'])).meters
+        dist = geopy_distance.distance((sp1['lat'], sp1['lng']), (sp2['lat'], sp2['lng'])).meters
         time = sp2['time'] - sp1['time']
         if time == 0:
             return float('inf')
