@@ -189,7 +189,11 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue)
             status_text = []
 
             # Print the queue length
-            status_text.append('Queues: {} items, {} db updates, {} webhook'.format(search_items_queue.qsize(), db_updates_queue.qsize(), wh_queue.qsize()))
+            if type(search_items_queue) is list:
+                queue_status = ", ".join([queue.size() for queue in search_items_queue])
+            else:
+                search_items_queue.qsize()
+            status_text.append('Queues: {} items, {} db updates, {} webhook'.format(queue_status, db_updates_queue.qsize(), wh_queue.qsize()))
 
             # Print status of overseer
             status_text.append('{} Overseer: {}'.format(threadStatus['Overseer']['method'], threadStatus['Overseer']['message']))
@@ -375,7 +379,7 @@ def search_overseer_thread_ss(args, new_location_queue, pause_bit, encryption_li
         log.info('Starting status printer thread')
         t = Thread(target=status_printer,
                    name='status_printer',
-                   args=(threadStatus, search_items_queue, db_updates_queue, wh_queue))
+                   args=(threadStatus, search_items_queues, db_updates_queue, wh_queue))
         t.daemon = True
         t.start()
 
