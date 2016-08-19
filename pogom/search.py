@@ -420,7 +420,7 @@ def search_overseer_thread_ss(args, new_location_queue, pause_bit, encryption_li
         threadStatus['Overseer']['message'] = "Getting spawnpoints from database"
         loc = new_location_queue.get()
         spawns = Pokemon.get_spawnpoints_in_hex(loc, args.step_limit)
-    spawns = assign_spawns(spawns, len(args.accounts), args.max_speed)
+    spawns = assign_spawns(spawns, len(args.accounts), args.scan_delay, args.max_speed)
     log.info('Total of %d spawns to track', len(spawns))
     # find the inital location (spawn thats 60sec old)
     pos = SbSearch(spawns, (curSec() + 3540) % 3600)
@@ -436,7 +436,7 @@ def search_overseer_thread_ss(args, new_location_queue, pause_bit, encryption_li
         pos = (pos + 1) % len(spawns)
 
 
-def assign_spawns(spawns, num_workers, max_speed):
+def assign_spawns(spawns, num_workers, scan_delay, max_speed):
 
     spawns.sort(key=itemgetter('time'))
 
@@ -446,7 +446,7 @@ def assign_spawns(spawns, num_workers, max_speed):
 
     def speed(sp1, sp2):
         dist = geopy_distance.distance((sp1['lat'], sp1['lng']), (sp2['lat'], sp2['lng'])).meters
-        time = sp2['time'] - sp1['time']
+        time = max(sp2['time'] - sp1['time'], scan_delay)
         if time == 0:
             return float('inf')
         else:
@@ -476,7 +476,12 @@ def assign_spawns(spawns, num_workers, max_speed):
         new = [queue[0]]
         for i in range(len(queue) - 1):
             j = i + 1
-            if 0 < speed(new[i], queue[j]) <= max_speed:
+            # If the time between the two spawns for one account is less than
+            # scan_delay, then we manually correct the scan time of the 2nd
+            # point here.
+            if queue[j]['time'] - new[i]['time'] < scan_delay:
+                queue[j]['time'] = new[i]['time'] + scan_delay
+            if 0 <= speed(new[i], queue[j]) <= max_speed:
                 new.append(queue[j])
             else:
                 dist = geopy_distance.distance((new[i]['lat'], new[i]['lng']), (queue[j]['lat'], queue[j]['lng'])).meters
