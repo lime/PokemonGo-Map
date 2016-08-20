@@ -525,7 +525,7 @@ def search_worker_thread(args, account, search_items_queue, parse_lock, encrypti
                 # If there's any time left between the start time and the time when we should be kicking off the next
                 # loop, hang out until its up.
                 # add random delay of 0-5 seconds to avoid account ban
-                randomDelay = random.randint(0,5)
+                randomDelay = random.randint(0, 5)
                 sleep_delay_remaining = loop_start_time + ((args.scan_delay + randomDelay) * 1000) - int(round(time.time() * 1000))
                 if sleep_delay_remaining > 0:
                     status['message'] = "Waiting {} seconds for scan delay".format(sleep_delay_remaining / 1000)
