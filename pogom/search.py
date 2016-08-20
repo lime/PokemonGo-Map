@@ -190,9 +190,9 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue)
 
             # Print the queue length
             if type(search_items_queue) is list:
-                queue_status = ", ".join([queue.size() for queue in search_items_queue])
+                queue_status = ", ".join([str(queue.qsize()) for queue in search_items_queue])
             else:
-                search_items_queue.qsize()
+                queue_status = search_items_queue.qsize()
             status_text.append('Queues: {} items, {} db updates, {} webhook'.format(queue_status, db_updates_queue.qsize(), wh_queue.qsize()))
 
             # Print status of overseer
@@ -445,7 +445,7 @@ def assign_spawns(spawns, num_workers, scan_delay, max_speed):
     log.info('Attemping to assign %d spawn points to %d accounts' % (len(spawns), num_workers))
 
     def speed(sp1, sp2):
-        dist = geopy_distance.distance((sp1['lat'], sp1['lng']), (sp2['lat'], sp2['lng'])).meters
+        dist = geopy.distance.distance((sp1['lat'], sp1['lng']), (sp2['lat'], sp2['lng'])).meters
         time = max(sp2['time'] - sp1['time'], scan_delay)
         if time == 0:
             return float('inf')
@@ -484,7 +484,7 @@ def assign_spawns(spawns, num_workers, scan_delay, max_speed):
             if 0 <= speed(new[i], queue[j]) <= max_speed:
                 new.append(queue[j])
             else:
-                dist = geopy_distance.distance((new[i]['lat'], new[i]['lng']), (queue[j]['lat'], queue[j]['lng'])).meters
+                dist = geopy.distance.distance((new[i]['lat'], new[i]['lng']), (queue[j]['lat'], queue[j]['lng'])).meters
                 time2wait = (dist / max_speed) - (queue[j]['time'] - new[i]['time'])
                 queue[j]['time'] += time2wait
                 delays.append(time2wait)
