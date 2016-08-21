@@ -189,7 +189,11 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue)
             status_text = []
 
             # Print the queue length
-            status_text.append('Queues: {} items, {} db updates, {} webhook'.format(search_items_queue.qsize(), db_updates_queue.qsize(), wh_queue.qsize()))
+            if type(search_items_queue) is list:
+                queue_status = ", ".join([str(queue.qsize()) for queue in search_items_queue])
+            else:
+                queue_status = search_items_queue.qsize()
+            status_text.append('Queues: {} items, {} db updates, {} webhook'.format(queue_status, db_updates_queue.qsize(), wh_queue.qsize()))
 
             # Print status of overseer
             status_text.append('{} Overseer: {}'.format(threadStatus['Overseer']['method'], threadStatus['Overseer']['message']))
@@ -361,7 +365,7 @@ def search_overseer_thread(args, new_location_queue, pause_bit, encryption_lib_p
 
 def search_overseer_thread_ss(args, new_location_queue, pause_bit, encryption_lib_path, db_updates_queue, wh_queue):
     log.info('Search ss overseer starting')
-    search_items_queue = Queue()
+    search_items_queues = []
     parse_lock = Lock()
     spawns = []
     threadStatus = {}
@@ -375,7 +379,7 @@ def search_overseer_thread_ss(args, new_location_queue, pause_bit, encryption_li
         log.info('Starting status printer thread')
         t = Thread(target=status_printer,
                    name='status_printer',
-                   args=(threadStatus, search_items_queue, db_updates_queue, wh_queue))
+                   args=(threadStatus, search_items_queues, db_updates_queue, wh_queue))
         t.daemon = True
         t.start()
 
@@ -383,6 +387,7 @@ def search_overseer_thread_ss(args, new_location_queue, pause_bit, encryption_li
     log.info('Starting search worker threads')
     for i, account in enumerate(args.accounts):
         log.debug('Starting search worker thread %d for user %s', i, account['username'])
+        search_items_queues.append(Queue())
         threadStatus['Worker {:03}'.format(i)] = {}
         threadStatus['Worker {:03}'.format(i)]['type'] = "Worker"
         threadStatus['Worker {:03}'.format(i)]['message'] = "Creating thread..."
@@ -392,7 +397,7 @@ def search_overseer_thread_ss(args, new_location_queue, pause_bit, encryption_li
         threadStatus['Worker {:03}'.format(i)]['noitems'] = 0
         t = Thread(target=search_worker_thread_ss,
                    name='ss-worker-{}'.format(i),
-                   args=(args, account, search_items_queue, parse_lock,
+                   args=(args, account, search_items_queues[i], parse_lock,
                          encryption_lib_path, threadStatus['Worker {:03}'.format(i)],
                          db_updates_queue, wh_queue))
         t.daemon = True
@@ -415,7 +420,7 @@ def search_overseer_thread_ss(args, new_location_queue, pause_bit, encryption_li
         threadStatus['Overseer']['message'] = "Getting spawnpoints from database"
         loc = new_location_queue.get()
         spawns = Pokemon.get_spawnpoints_in_hex(loc, args.step_limit)
-    spawns.sort(key=itemgetter('time'))
+    spawns = assign_spawns(spawns, len(args.accounts), args.scan_delay, args.max_speed)
     log.info('Total of %d spawns to track', len(spawns))
     # find the inital location (spawn thats 60sec old)
     pos = SbSearch(spawns, (curSec() + 3540) % 3600)
@@ -427,8 +432,90 @@ def search_overseer_thread_ss(args, new_location_queue, pause_bit, encryption_li
         threadStatus['Overseer']['message'] = "Queuing spawnpoint {} of {}".format(pos, len(spawns))
         location = [spawns[pos]['lat'], spawns[pos]['lng'], 40.32]
         search_args = (pos, location, spawns[pos]['time'])
-        search_items_queue.put(search_args)
+        search_items_queues[spawns[pos]['worker']].put(search_args)
         pos = (pos + 1) % len(spawns)
+
+
+def assign_spawns(spawns, num_workers, scan_delay, max_speed):
+
+    spawns.sort(key=itemgetter('time'))
+
+    Q = [[] for i in range(num_workers)]
+
+    log.info('Attemping to assign %d spawn points to %d accounts' % (len(spawns), num_workers))
+
+    def speed(sp1, sp2):
+        dist = geopy.distance.distance((sp1['lat'], sp1['lng']), (sp2['lat'], sp2['lng'])).meters
+        time = max(sp2['time'] - sp1['time'], scan_delay)
+        if time == 0:
+            return float('inf')
+        else:
+            return dist / time
+
+    jumps = 0
+    for sp in spawns:
+        speeds = [speed(q[-1], sp) if len(q) else 0 for q in Q]
+        min_speed = min(speeds)
+        index = speeds.index(min_speed)
+        if min_speed > max_speed:
+            jumps += 1
+        Q[index].append(sp)
+
+    log.debug('Finished building initial job queues.')
+    log.debug('Number of jumps total: %d' % jumps)
+
+    # wrap around the job queue
+    for q in Q:
+        last = q[0].copy()
+        last['time'] += 3600
+        q.append(last)
+
+    delays = []
+
+    def correct(queue):
+        new = [queue[0]]
+        for i in range(len(queue) - 1):
+            j = i + 1
+            # If the time between the two spawns for one account is less than
+            # scan_delay, then we manually correct the scan time of the 2nd
+            # point here.
+            if queue[j]['time'] - new[i]['time'] < scan_delay:
+                queue[j]['time'] = new[i]['time'] + scan_delay
+            if 0 <= speed(new[i], queue[j]) <= max_speed:
+                new.append(queue[j])
+            else:
+                dist = geopy.distance.distance((new[i]['lat'], new[i]['lng']), (queue[j]['lat'], queue[j]['lng'])).meters
+                time2wait = (dist / max_speed) - (queue[j]['time'] - new[i]['time'])
+                queue[j]['time'] += time2wait
+                delays.append(time2wait)
+                new.append(queue[j])
+        for sp in new:
+            sp['time'] %= 3600
+        return new[0:-1]
+
+    Q = [correct(q) for q in Q]
+
+    log.debug('Completed job assignment.')
+    log.info('Job queue sizes: %s' % str([len(q) for q in Q]))
+    if len(delays):
+        log.info('Number of scan delays: %d.' % len(delays))
+        log.info('Average delay: %f seconds.' % (sum(delays) / len(delays)))
+        log.info('Max delay: %f seconds.' % max(delays))
+        if max(delays) > 60:
+            log.info('Cannot assign spawn points with delay less than a minute. You should try increasing number of accounts or decreasing number of spawn points.')
+    else:
+        log.info('No additional delay is added to any spawn point.')
+
+    # Assign worker id to each spown point
+    for index, queue in enumerate(Q):
+        for sp in queue:
+            sp['worker'] = index
+
+    # Merge individual job queues back to one queue and sort it
+    spawns = sum(Q, [])
+    spawns.sort(key=itemgetter('time'))
+
+    return spawns
 
 
 def search_worker_thread(args, account, search_items_queue, parse_lock, encryption_lib_path, status, dbq, whq):

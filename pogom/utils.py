@@ -126,6 +126,8 @@ def get_args():
                         action='store_true', default=False)
     parser.add_argument('-ss', '--spawnpoint-scanning',
                         help='Use spawnpoint scanning (instead of hex grid)', nargs='?', const='null.null', default=None)
+    parser.add_argument('-ms', '--max-speed',
+                        help='Max speed allowed in spawnpoint mode. Defaults to 30 m/s', type=float, default=30)
     parser.add_argument('--dump-spawnpoints', help='dump the spawnpoints from the db to json (only for use with -ss)',
                         action='store_true', default=False)
     parser.add_argument('-pd', '--purge-data',

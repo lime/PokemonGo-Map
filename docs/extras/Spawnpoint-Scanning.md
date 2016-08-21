@@ -6,6 +6,8 @@ Spawnpoint Scanning consists of only scanning an area in which a spawn has recen
 
 Spawnpoint Scanning is particularly useful in areas where spawns are spread out
 
+To prevent account teleporting, Spawnpoint Scanning mode now include a speed limit of 30m/s per account by default.
+
 ## Spawnpoint Scanning can be run in one of three different modes:
 
 ### Scans based on database
@@ -45,3 +47,8 @@ Note: in this mode -st does nothing
 for generating the spawns to use with Spawnpoint Scanning it is recommended to scan the area with a scan that completes in 10 minutes for at least 1 hour, this should guarantee that all spawns are found
 
 spawn files can also be generated with an external tool such as spawnScan
+
+### Preventing account from teleporting
+
+PokemonGo Map automatically tries to pre-assign each spawn point to an account that needs to travel the slowest to scan that location. If no accounts can do so, an additional delay will be added to the spawn point so that the scanning account stays below the speed limit. It is helpful to try to keep this delay low by decreasign the search area or increasing the number of accounts used. You can also manually assign a speed limit via the command-line option "-ms" or "--max-speed".
+
