@@ -194,6 +194,7 @@ var detailsPersist = false
 var map = null
 var heatmap = null
 var heatmapPoints = []
+mapData = mapData || {} // Why on earth is mapData expected to be available here? :/
 mapData.appearances = {}
 
 function loadDetails () {
